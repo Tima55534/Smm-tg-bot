@@ -1,0 +1,41 @@
+# General posting schedule
+schedule:
+  interval_days: 2
+  # local time of day the pipeline runs (server timezone)
+  time: "10:00"
+  timezone: "Asia/Tashkent"
+
+# Every Nth scheduled post is a poll instead of a text+image post.
+# Set to 0 to disable automatic polls (still available via /poll command).
+poll_every_n_posts: 4
+
+# Sources to collect news/data from
+sources:
+  web:
+    - name: buxgalter_uz
+      type: buxgalter
+      url: "https://buxgalter.uz/publish/group4611_novosti"
+    - name: soliq_uz
+      type: soliq
+      api_url: "https://my.soliq.uz/api/main-api/news/search"
+      file_url: "https://my.soliq.uz/api/main-api/news/get/file/{file_name}?type=1"
+      page_size: 10
+
+  telegram:
+    - "soliqnews"
+    - "uz_buxgalter"
+    - "bank_kuni"
+
+# How many source items to fetch/consider per pipeline run
+max_items_per_source: 5
+
+# Post text generation
+ai:
+  text_model: "claude-sonnet-5"
+  image_model: "gpt-image-1"
+  image_size: "1024x1024"
+  # style guidance passed to Claude when rewriting a news item into a post
+  post_style: >
+    Пиши кратко и по делу на русском языке, в стиле новостного Telegram-канала
+    про бухгалтерию, налоги и финансы Узбекистана. 3-6 предложений, без воды,
+    без хэштегов в начале, можно 2-3 релевантных хэштега в конце.
