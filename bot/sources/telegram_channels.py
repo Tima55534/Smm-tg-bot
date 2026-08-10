@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import logging
 from pathlib import Path
 
 from telethon import TelegramClient
@@ -7,6 +9,21 @@ from telethon import TelegramClient
 from .base import NewsItem
 
 SESSION_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "telethon_userbot"
+
+logger = logging.getLogger(__name__)
+
+
+def ensure_session_from_env(session_b64: str | None) -> None:
+    """Restore the .session file from TELETHON_SESSION_B64 if it isn't already
+    on disk. Lets a host that can't run scripts/telethon_login.py interactively
+    (e.g. a fresh Railway deploy with no persistent volume) reuse a session
+    that was generated elsewhere."""
+    session_file = Path(f"{SESSION_PATH}.session")
+    if session_file.exists() or not session_b64:
+        return
+    session_file.parent.mkdir(parents=True, exist_ok=True)
+    session_file.write_bytes(base64.b64decode(session_b64))
+    logger.info("Restored Telethon session from TELETHON_SESSION_B64")
 
 
 async def fetch_channel(

@@ -15,6 +15,7 @@ from .handlers.admin import build_router as build_admin_router
 from .moderation import build_router as build_moderation_router
 from .pipeline import Services, start_topic_selection
 from .scheduler import build_scheduler
+from .sources.telegram_channels import ensure_session_from_env
 from .topics import build_router as build_topics_router
 
 logging.basicConfig(
@@ -25,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 
 async def main() -> None:
+    ensure_session_from_env(settings.telethon_session_b64)
+
     db = Database(settings.db_path)
     await db.connect()
 

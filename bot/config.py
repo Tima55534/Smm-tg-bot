@@ -33,6 +33,7 @@ class Settings:
     telegram_api_id: int
     telegram_api_hash: str
     telegram_phone: str
+    telethon_session_b64: str | None
     anthropic_api_key: str
     openai_api_key: str
 
@@ -73,6 +74,7 @@ class Settings:
             telegram_api_id=int(_require("TELEGRAM_API_ID")),
             telegram_api_hash=_require("TELEGRAM_API_HASH"),
             telegram_phone=_require("TELEGRAM_PHONE"),
+            telethon_session_b64=os.environ.get("TELETHON_SESSION_B64") or None,
             anthropic_api_key=_require("ANTHROPIC_API_KEY"),
             openai_api_key=_require("OPENAI_API_KEY"),
             interval_days=int(raw["schedule"]["interval_days"]),
