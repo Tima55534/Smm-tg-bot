@@ -46,13 +46,17 @@ GLOSS_PROMPT = """\
 
 {items}
 
-Для каждой темы напиши ОДНУ короткую фразу на русском (до 12 слов), которая
-понятным языком объясняет редактору, о чём эта новость и почему она может
-быть (не)интересна начинающим бухгалтерам. Не пересказывай заголовок, объясни
-суть.
+Для каждой темы напиши 1-2 предложения на русском (примерно 20-40 слов),
+которые понятным языком объясняют редактору: (а) что означает заголовок,
+если это хэштег или неочевидная фраза, и (б) о чём именно эта новость —
+конкретные факты, а не общие слова. Редактор должен понять суть, не открывая
+источник. Если это не новость, а реклама/розыгрыш/шаблонный пост — прямо
+скажи об этом.
 
 Ответь СТРОГО JSON-массивом из {count} строк в том же порядке, без пояснений.
-Пример формата: ["Изменение сроков сдачи НДС с 2027 года", "Рекламный розыгрыш, не новость"]"""
+Пример формата: ["Меняются сроки сдачи НДС: с 2027 года отчёт нужно подавать
+до 15 числа вместо 20-го, коснётся всех плательщиков НДС", "Рекламный
+розыгрыш от банка среди держателей карт — не новость, для канала не подходит"]"""
 
 IMAGE_BRIEF_PROMPT = """\
 Заголовок новости: {title}
@@ -180,14 +184,14 @@ class TextAI:
         Falls back to the raw title on any error."""
         fallback = [item.title for item in candidates]
         items_text = "\n\n".join(
-            f"{i + 1}. Заголовок: {item.title}\n   Текст: {item.text[:300]}"
+            f"{i + 1}. Заголовок: {item.title}\n   Текст: {item.text[:600]}"
             for i, item in enumerate(candidates)
         )
         prompt = GLOSS_PROMPT.format(items=items_text, count=len(candidates))
         try:
             message = await self._client.messages.create(
                 model=self._model,
-                max_tokens=500,
+                max_tokens=1000,
                 messages=[{"role": "user", "content": prompt}],
             )
             raw = "".join(
@@ -199,7 +203,7 @@ class TextAI:
             values = json.loads(match.group(0))
             if len(values) != len(candidates):
                 raise ValueError(f"Expected {len(candidates)} values, got {len(values)}")
-            return [str(v)[:150] for v in values]
+            return [str(v)[:350] for v in values]
         except Exception:
             return fallback
 
