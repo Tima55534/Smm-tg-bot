@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 
 from anthropic import AsyncAnthropic
 
 from ..sources.base import NewsItem
+
+logger = logging.getLogger(__name__)
 
 # Telegram photo caption limit is 1024 chars; leave headroom for HTML tags and
 # the AI's imprecision so truncation (which could cut a tag in half) is rare.
@@ -54,9 +57,11 @@ GLOSS_PROMPT = """\
 скажи об этом.
 
 Ответь СТРОГО JSON-массивом из {count} строк в том же порядке, без пояснений.
-Пример формата: ["Меняются сроки сдачи НДС: с 2027 года отчёт нужно подавать
-до 15 числа вместо 20-го, коснётся всех плательщиков НДС", "Рекламный
-розыгрыш от банка среди держателей карт — не новость, для канала не подходит"]"""
+Каждая строка массива — обычная однострочная JSON-строка, БЕЗ переносов строк
+внутри неё (пиши весь текст темы в одну строку, раздели предложения точкой,
+а не Enter'ом).
+Пример формата (ровно так, каждый элемент на одной строке):
+["Меняются сроки сдачи НДС: с 2027 года отчёт подают до 15 числа вместо 20-го. Коснётся всех плательщиков НДС.", "Рекламный розыгрыш от банка среди держателей карт. Это не новость, для канала не подходит."]"""
 
 IMAGE_BRIEF_PROMPT = """\
 Заголовок новости: {title}
@@ -200,11 +205,19 @@ class TextAI:
             match = re.search(r"\[.*\]", raw, re.DOTALL)
             if not match:
                 raise ValueError(f"No JSON array in response: {raw!r}")
-            values = json.loads(match.group(0))
+            array_text = match.group(0)
+            try:
+                values = json.loads(array_text)
+            except json.JSONDecodeError:
+                # Claude sometimes wraps a line inside a string value despite
+                # instructions not to — raw newlines inside a JSON string are
+                # invalid, so collapse them and retry once.
+                values = json.loads(re.sub(r"(?<!\\)\n", " ", array_text))
             if len(values) != len(candidates):
                 raise ValueError(f"Expected {len(candidates)} values, got {len(values)}")
             return [str(v)[:350] for v in values]
         except Exception:
+            logger.warning("summarize_topics failed, falling back to raw titles", exc_info=True)
             return fallback
 
     async def suggest_image_brief(self, item: NewsItem) -> str | None:
