@@ -10,7 +10,7 @@ from .ai.text import TextAI
 from .config import Settings
 from .db import Database
 from .moderation import send_draft_for_moderation
-from .sources import buxgalter, soliq, telegram_channels
+from .sources import buxgalter, lex_uz, soliq, telegram_channels
 from .sources.base import NewsItem
 
 logger = logging.getLogger(__name__)
@@ -40,6 +40,10 @@ async def collect_candidates(settings: Settings, db: Database) -> list[NewsItem]
                     web_source.options["file_url"],
                     limit=settings.max_items_per_source,
                     page_size=web_source.options.get("page_size", 10),
+                )
+            elif web_source.type == "lex_uz":
+                items += await lex_uz.fetch(
+                    web_source.options["url"], limit=settings.max_items_per_source
                 )
             else:
                 logger.warning("Unknown web source type: %s", web_source.type)

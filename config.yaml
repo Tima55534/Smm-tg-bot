@@ -20,6 +20,9 @@ sources:
       api_url: "https://my.soliq.uz/api/main-api/news/search"
       file_url: "https://my.soliq.uz/api/main-api/news/get/file/{file_name}?type=1"
       page_size: 10
+    - name: lex_uz
+      type: lex_uz
+      url: "https://lex.uz/uz/"
 
   telegram:
     - "soliqnews"
