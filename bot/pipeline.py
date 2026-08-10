@@ -52,6 +52,7 @@ async def collect_candidates(settings: Settings, db: Database) -> list[NewsItem]
             settings.telegram_api_hash,
             settings.telegram_channels,
             limit=settings.max_items_per_source,
+            session_string=settings.telethon_session_string,
         )
     except Exception:
         logger.exception("Failed to fetch Telegram channel sources")
