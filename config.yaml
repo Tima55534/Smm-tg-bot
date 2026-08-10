@@ -36,8 +36,9 @@ ai:
   image_size: "1024x1024"
   # style guidance passed to Claude when rewriting a news item into a post
   post_style: >
-    Пиши на русском языке в стиле экспертного Telegram-канала про бухгалтерию,
-    налоги и финансы Узбекистана. Короткие абзацы (1-2 предложения), без воды.
+    Пиши на узбекском языке (лотин ёзувида / latin alphabet, o'zbek tilida) в
+    стиле экспертного Telegram-канала про бухгалтерию, налоги и финансы
+    Узбекистана. Короткие абзацы (1-2 предложения), без воды.
 
     Структура поста:
     1. Первая строка — жирный заголовок-крючок: короткая фраза, цепляющая
@@ -59,12 +60,16 @@ ai:
   image_style: >
     High-end poster / key-visual design, like a premium tech startup announcement
     graphic. Near-black background (#262626 / #1a1a1a), dramatic single-source
-    studio lighting, one bold 3D-rendered or richly-shaded hero object floating
-    in frame (e.g. a glowing badge, a stamped document, a coin, a shield, a
-    checkmark seal, a gauge, an abstract crystal/gem shape — pick something that
-    fits the news topic) with a strong lime-green glow (#D2FF28) as rim light or
+    studio lighting, one bold 3D-rendered hero object floating in frame — this
+    can be a stylized 3D person (e.g. an accountant/office worker rendered as a
+    smooth clay/plastic-look 3D character, not a flat silhouette) and/or a 3D
+    laptop/device, OR a symbolic object (a glowing badge, a stamped document, a
+    coin, a shield, a checkmark seal, a gauge) — pick whatever fits the news
+    topic best. The hero object must always be a rendered 3D form with real
+    volume, shading and depth (like a Pixar/Cinema4D render), never a flat
+    vector icon or silhouette. Strong lime-green glow (#D2FF28) as rim light or
     emissive accent, plus dark gray (#444444) secondary surfaces. Cinematic depth
     of field, soft shadows, subtle grid or particle texture in the background.
-    Strictly AVOID: flat vector clipart, generic icon-style illustrations,
-    silhouettes of businesspeople, laptops, clipboards, checklists, or any
-    stock-icon-set look. No text, no letters, no numbers, no logos, no watermarks.
+    Strictly AVOID: flat vector clipart, generic icon-style illustrations, flat
+    silhouettes, or any stock-icon-set look. No text, no letters, no numbers,
+    no logos, no watermarks.
