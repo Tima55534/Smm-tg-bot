@@ -13,8 +13,9 @@ from .config import BASE_DIR, settings
 from .db import Database
 from .handlers.admin import build_router as build_admin_router
 from .moderation import build_router as build_moderation_router
-from .pipeline import Services, run_pipeline
+from .pipeline import Services, start_topic_selection
 from .scheduler import build_scheduler
+from .topics import build_router as build_topics_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,13 +46,14 @@ async def main() -> None:
     services = Services(bot=bot, db=db, settings=settings, text_ai=text_ai, image_ai=image_ai)
 
     dp.include_router(build_moderation_router(services))
+    dp.include_router(build_topics_router(services))
     dp.include_router(build_admin_router(services))
 
     async def scheduled_run() -> None:
         try:
-            await run_pipeline(services)
+            await start_topic_selection(services)
         except Exception:
-            logger.exception("Scheduled pipeline run failed")
+            logger.exception("Scheduled topic selection run failed")
 
     scheduler = build_scheduler(
         scheduled_run,

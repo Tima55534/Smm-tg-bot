@@ -40,6 +40,25 @@ POLL_PROMPT = """\
 Требования: question до 250 символов, от 2 до 5 вариантов ответа,
 каждый вариант до 90 символов, варианты короткие и осмысленные."""
 
+RELEVANCE_PROMPT = """\
+Ты помогаешь редактору Telegram-канала для начинающих бухгалтеров-стажёров
+отбирать темы новостей. Не все новости про налоги и бухгалтерию им подходят —
+некоторые слишком сложные, узкоспециализированные или нерелевантные новичкам.
+
+Заголовки, которые редактор УЖЕ ОДОБРИЛ в прошлом (значит, такой уровень
+сложности и такие темы подходят):
+{accepted}
+
+Заголовки, которые редактор ОТКЛОНИЛ (не подходят новичкам):
+{rejected}
+
+Теперь оцени вот эти новые кандидаты (пронумерованы):
+{candidates}
+
+Ответь СТРОГО JSON-массивом из {count} значений true/false в том же порядке
+(true = стоит предложить редактору, false = не стоит), без пояснений.
+Пример формата: [true, false, true]"""
+
 
 class TextAI:
     def __init__(self, api_key: str, model: str):
@@ -85,3 +104,43 @@ class TextAI:
         if len(options) < 2:
             raise ValueError(f"Poll needs at least 2 options, got: {options!r}")
         return question, options
+
+    async def suggest_topic_relevance(
+        self,
+        candidates: list[NewsItem],
+        accepted_titles: list[str],
+        rejected_titles: list[str],
+    ) -> list[bool]:
+        """Pre-check which candidate topics look relevant, based on past admin
+        decisions. Returns a list of bools, same order/length as `candidates`.
+        Fails safe to all-False (nothing pre-checked) on any error."""
+        if not accepted_titles and not rejected_titles:
+            return [False] * len(candidates)
+
+        candidates_text = "\n".join(
+            f"{i + 1}. {item.title}" for i, item in enumerate(candidates)
+        )
+        prompt = RELEVANCE_PROMPT.format(
+            accepted="\n".join(f"- {t}" for t in accepted_titles) or "(пока нет)",
+            rejected="\n".join(f"- {t}" for t in rejected_titles) or "(пока нет)",
+            candidates=candidates_text,
+            count=len(candidates),
+        )
+        try:
+            message = await self._client.messages.create(
+                model=self._model,
+                max_tokens=400,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = "".join(
+                block.text for block in message.content if block.type == "text"
+            ).strip()
+            match = re.search(r"\[.*\]", raw, re.DOTALL)
+            if not match:
+                raise ValueError(f"No JSON array in response: {raw!r}")
+            values = json.loads(match.group(0))
+            if len(values) != len(candidates):
+                raise ValueError(f"Expected {len(candidates)} values, got {len(values)}")
+            return [bool(v) for v in values]
+        except Exception:
+            return [False] * len(candidates)

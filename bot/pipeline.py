@@ -65,19 +65,11 @@ async def collect_candidates(settings: Settings, db: Database) -> list[NewsItem]
     return unseen
 
 
-async def run_pipeline(services: Services, force_kind: str | None = None) -> int | None:
-    """Fetch fresh candidates, build a draft, send it for moderation.
-
-    Returns the created draft id, or None if there was no fresh item to post.
-    """
-    candidates = await collect_candidates(services.settings, services.db)
-    if not candidates:
-        logger.info("No fresh, unseen items found across all sources")
-        return None
-
-    item = candidates[0]
-    await services.db.mark_seen(item.source, item.external_id)
-
+async def generate_draft_for_item(
+    services: Services, item: NewsItem, force_kind: str | None = None
+) -> int:
+    """Turn one already-selected NewsItem into a draft (post or poll) and send
+    it for moderation. Returns the created draft id."""
     kind = force_kind
     if kind is None:
         published = await services.db.count_published()
@@ -111,3 +103,49 @@ async def run_pipeline(services: Services, force_kind: str | None = None) -> int
 
     await send_draft_for_moderation(services.bot, services.db, services.settings, draft_id)
     return draft_id
+
+
+async def run_pipeline(services: Services, force_kind: str | None = None) -> int | None:
+    """Fetch fresh candidates and build+send a draft for the single most recent
+    one, skipping topic selection. Used by the manual /poll command.
+
+    Returns the created draft id, or None if there was no fresh item to post.
+    """
+    candidates = await collect_candidates(services.settings, services.db)
+    if not candidates:
+        logger.info("No fresh, unseen items found across all sources")
+        return None
+
+    item = candidates[0]
+    await services.db.mark_seen(item.source, item.external_id)
+    return await generate_draft_for_item(services, item, force_kind=force_kind)
+
+
+async def collect_topics(settings: Settings, db: Database, limit: int = 10) -> list[NewsItem]:
+    candidates = await collect_candidates(settings, db)
+    return candidates[:limit]
+
+
+async def start_topic_selection(services: Services, limit: int = 10) -> int | None:
+    """Fetch fresh topics and send them to the moderation chat as a checklist.
+
+    Returns the created topic_batch id, or None if there was nothing fresh.
+    Does NOT mark items as seen — that only happens once the admin confirms
+    their selection (see topics.py), so unselected items stay eligible for a
+    future batch.
+    """
+    from .topics import send_topic_batch  # local import: avoids a circular import
+
+    candidates = await collect_topics(services.settings, services.db, limit=limit)
+    if not candidates:
+        logger.info("No fresh, unseen items found across all sources")
+        return None
+
+    feedback = await services.db.recent_topic_feedback(limit=40)
+    accepted = [title for title, selected in feedback if selected][:20]
+    rejected = [title for title, selected in feedback if not selected][:20]
+    preselect = await services.text_ai.suggest_topic_relevance(candidates, accepted, rejected)
+
+    batch_id = await services.db.create_topic_batch(candidates, preselect)
+    await send_topic_batch(services.bot, services.db, services.settings, batch_id)
+    return batch_id

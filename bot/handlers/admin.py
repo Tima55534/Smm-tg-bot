@@ -8,7 +8,7 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
-from ..pipeline import run_pipeline
+from ..pipeline import run_pipeline, start_topic_selection
 
 if TYPE_CHECKING:
     from ..pipeline import Services
@@ -33,14 +33,14 @@ def build_router(services: "Services") -> Router:
     async def cmd_now(message: Message) -> None:
         if not _is_admin(message):
             return
-        await message.reply("Собираю новости и готовлю черновик...")
+        await message.reply("Собираю темы из источников...")
         try:
-            draft_id = await run_pipeline(services)
+            batch_id = await start_topic_selection(services)
         except Exception:
             logger.exception("Manual /now run failed")
-            await message.reply("Ошибка при подготовке черновика, см. логи сервера.")
+            await message.reply("Ошибка при сборе тем, см. логи сервера.")
             return
-        if draft_id is None:
+        if batch_id is None:
             await message.reply("Свежих новостей не найдено ни в одном источнике.")
 
     @router.message(Command("poll"))
