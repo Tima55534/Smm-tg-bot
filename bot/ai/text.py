@@ -49,18 +49,19 @@ GLOSS_PROMPT = """\
 
 {items}
 
-Для каждой темы напиши РОВНО ОДНО предложение на русском, НЕ ДЛИННЕЕ 25 слов
-(это жёсткий лимит, считай слова), которое понятным языком объясняет
-редактору: что означает заголовок (если это хэштег/неочевидная фраза) И о чём
-именно новость — самый главный факт, без второстепенных деталей. Редактор
-должен понять суть, не открывая источник. Если это не новость, а
-реклама/розыгрыш/шаблонный пост — начни с пометки "[не новость]".
+Har bir mavzu uchun ROVNO BITTA gap yoz — o'zbek tilida, LOTIN yozuvida (Kirill
+emas), 25 so'zdan OSHMASIN (bu qat'iy chegara, so'zlarni sanab chiq). Gap
+muharrirga tushunarli tilda tushuntirsin: sarlavha nimani anglatadi (agar bu
+hashtag yoki noaniq ibora bo'lsa) VA aynan qanday xabar — asosiy fakt, ortiqcha
+tafsilotlarsiz. Muharrir manbani ochmasdan mohiyatni tushunishi kerak. Agar bu
+yangilik emas, balki reklama/lotereya/shablon post bo'lsa — "[yangilik emas]"
+belgisidan boshla.
 
-Ответь СТРОГО JSON-массивом из {count} строк в том же порядке, без пояснений
-и без Markdown. Каждая строка массива — однострочная JSON-строка, БЕЗ
-переносов строк внутри неё.
-Пример формата (ровно так, каждый элемент — одно короткое предложение):
-["С 2027 года НДС сдают до 15 числа вместо 20-го.", "[не новость] Рекламный розыгрыш банка среди держателей карт."]"""
+Javobni QAT'IY {count} ta qatordan iborat JSON-massiv sifatida ber, xuddi shu
+tartibda, izohlarsiz va Markdown'siz. Massivning har bir qatori — bitta
+qatorli JSON-satr, ICHIDA qator ko'chirish (newline) BO'LMASIN.
+Format namunasi (aynan shunday, har bir element — bitta qisqa gap):
+["2027-yildan QQS 20-sana o'rniga 15-sanagacha topshiriladi.", "[yangilik emas] Bank kartasi egalari orasida reklama lotereyasi."]"""
 
 IMAGE_BRIEF_PROMPT = """\
 Заголовок новости: {title}
