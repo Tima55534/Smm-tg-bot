@@ -38,6 +38,8 @@ def _build_text(items: list[TopicBatchItem]) -> str:
     for item in items:
         mark = "✅" if item.selected else "⬜"
         lines.append(f"{mark} {item.idx + 1}. {html.escape(item.title)}")
+        if item.gloss and item.gloss != item.title:
+            lines.append(f"    <i>{html.escape(item.gloss)}</i>")
     return "\n".join(lines)
 
 

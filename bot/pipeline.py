@@ -91,7 +91,8 @@ async def generate_draft_for_item(
         )
     else:
         body = await services.text_ai.rewrite_post(item, services.settings.post_style)
-        image_path = await services.image_ai.generate(item.title)
+        image_brief = await services.text_ai.suggest_image_brief(item)
+        image_path = await services.image_ai.generate(item.title, image_brief)
         draft_id = await services.db.create_draft(
             kind="post",
             source=item.source,
@@ -146,7 +147,8 @@ async def start_topic_selection(services: Services, limit: int = 10) -> int | No
     accepted = [title for title, selected in feedback if selected][:20]
     rejected = [title for title, selected in feedback if not selected][:20]
     preselect = await services.text_ai.suggest_topic_relevance(candidates, accepted, rejected)
+    glosses = await services.text_ai.summarize_topics(candidates)
 
-    batch_id = await services.db.create_topic_batch(candidates, preselect)
+    batch_id = await services.db.create_topic_batch(candidates, preselect, glosses)
     await send_topic_batch(services.bot, services.db, services.settings, batch_id)
     return batch_id

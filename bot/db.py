@@ -53,7 +53,8 @@ CREATE TABLE IF NOT EXISTS topic_batch_items (
     url TEXT,
     text TEXT NOT NULL,
     published_at REAL,
-    selected INTEGER NOT NULL DEFAULT 0
+    selected INTEGER NOT NULL DEFAULT 0,
+    gloss TEXT
 );
 
 -- source/external_id + selected: whether the admin picked this topic to turn
@@ -122,6 +123,7 @@ class TopicBatchItem:
     text: str
     published_at: Optional[float]
     selected: bool
+    gloss: Optional[str]
 
     @classmethod
     def from_row(cls, row: aiosqlite.Row) -> "TopicBatchItem":
@@ -136,6 +138,7 @@ class TopicBatchItem:
             text=row["text"],
             published_at=row["published_at"],
             selected=bool(row["selected"]),
+            gloss=row["gloss"],
         )
 
 
@@ -274,19 +277,23 @@ class Database:
 
     # -- topic batches (pre-draft topic selection) -----------------------
 
-    async def create_topic_batch(self, items: list, preselect: list[bool]) -> int:
+    async def create_topic_batch(
+        self, items: list, preselect: list[bool], glosses: Optional[list[str]] = None
+    ) -> int:
         """`items` is a list of NewsItem-like objects; `preselect` marks which
-        indices start pre-checked based on learned relevance."""
+        indices start pre-checked based on learned relevance; `glosses` are the
+        one-line plain-language explanations shown alongside each title."""
         cur = await self.conn.execute(
             "INSERT INTO topic_batches (status, created_at) VALUES ('pending', ?)",
             (time.time(),),
         )
         batch_id = cur.lastrowid
-        for idx, (item, selected) in enumerate(zip(items, preselect)):
+        glosses = glosses or [None] * len(items)
+        for idx, (item, selected, gloss) in enumerate(zip(items, preselect, glosses)):
             await self.conn.execute(
                 """INSERT INTO topic_batch_items
-                   (batch_id, idx, source, external_id, title, url, text, published_at, selected)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (batch_id, idx, source, external_id, title, url, text, published_at, selected, gloss)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     batch_id,
                     idx,
@@ -297,6 +304,7 @@ class Database:
                     item.text,
                     item.published_at,
                     1 if selected else 0,
+                    gloss,
                 ),
             )
         await self.conn.commit()

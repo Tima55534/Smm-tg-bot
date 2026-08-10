@@ -40,6 +40,31 @@ POLL_PROMPT = """\
 Требования: question до 250 символов, от 2 до 5 вариантов ответа,
 каждый вариант до 90 символов, варианты короткие и осмысленные."""
 
+GLOSS_PROMPT = """\
+Вот список тем новостей (заголовки могут быть хэштегами или неинформативными),
+и краткий текст к каждой:
+
+{items}
+
+Для каждой темы напиши ОДНУ короткую фразу на русском (до 12 слов), которая
+понятным языком объясняет редактору, о чём эта новость и почему она может
+быть (не)интересна начинающим бухгалтерам. Не пересказывай заголовок, объясни
+суть.
+
+Ответь СТРОГО JSON-массивом из {count} строк в том же порядке, без пояснений.
+Пример формата: ["Изменение сроков сдачи НДС с 2027 года", "Рекламный розыгрыш, не новость"]"""
+
+IMAGE_BRIEF_PROMPT = """\
+Заголовок новости: {title}
+Текст: {text}
+
+Опиши ОДНИМ предложением на английском языке, какой конкретный физический
+объект или сцена лучше всего символизировала бы именно эту новость на
+постерной 3D-иллюстрации (например: "a 3D rendered car key with a glowing
+ribbon", "a stack of tax documents with a calendar page", "a 3D coin stack
+with an upward arrow"). Не описывай стиль/свет/цвет — только сам объект/сцену,
+это добавится отдельно. Ответь только этим предложением, без пояснений."""
+
 RELEVANCE_PROMPT = """\
 Ты помогаешь редактору Telegram-канала для начинающих бухгалтеров-стажёров
 отбирать темы новостей. Не все новости про налоги и бухгалтерию им подходят —
@@ -148,3 +173,50 @@ class TextAI:
             return [bool(v) for v in values]
         except Exception:
             return [False] * len(candidates)
+
+    async def summarize_topics(self, candidates: list[NewsItem]) -> list[str]:
+        """One-line, plain-language Russian gloss per candidate, so the admin
+        can judge a topic without decoding a hashtag or a vague headline.
+        Falls back to the raw title on any error."""
+        fallback = [item.title for item in candidates]
+        items_text = "\n\n".join(
+            f"{i + 1}. Заголовок: {item.title}\n   Текст: {item.text[:300]}"
+            for i, item in enumerate(candidates)
+        )
+        prompt = GLOSS_PROMPT.format(items=items_text, count=len(candidates))
+        try:
+            message = await self._client.messages.create(
+                model=self._model,
+                max_tokens=500,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = "".join(
+                block.text for block in message.content if block.type == "text"
+            ).strip()
+            match = re.search(r"\[.*\]", raw, re.DOTALL)
+            if not match:
+                raise ValueError(f"No JSON array in response: {raw!r}")
+            values = json.loads(match.group(0))
+            if len(values) != len(candidates):
+                raise ValueError(f"Expected {len(candidates)} values, got {len(values)}")
+            return [str(v)[:150] for v in values]
+        except Exception:
+            return fallback
+
+    async def suggest_image_brief(self, item: NewsItem) -> str | None:
+        """A short, content-specific description of what the illustration's
+        hero object/scene should be, so the image isn't a generic stand-in.
+        Returns None on any error (caller should fall back to the bare title)."""
+        prompt = IMAGE_BRIEF_PROMPT.format(title=item.title, text=item.text[:2000])
+        try:
+            message = await self._client.messages.create(
+                model=self._model,
+                max_tokens=100,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = "".join(
+                block.text for block in message.content if block.type == "text"
+            ).strip()
+            return text or None
+        except Exception:
+            return None

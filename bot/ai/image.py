@@ -9,6 +9,7 @@ from openai import AsyncOpenAI
 IMAGE_PROMPT_TEMPLATE = """\
 Editorial illustration for a Telegram post about Uzbek tax/accounting/finance news.
 Topic: {title}
+Hero object/scene: {brief}
 Style: {style}"""
 
 
@@ -21,8 +22,11 @@ class ImageAI:
         self._output_dir = output_dir
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
-    async def generate(self, title: str) -> Path:
-        prompt = IMAGE_PROMPT_TEMPLATE.format(title=title[:300], style=self._style.strip())
+    async def generate(self, title: str, content_brief: str | None = None) -> Path:
+        brief = content_brief or "pick whatever fits the topic best"
+        prompt = IMAGE_PROMPT_TEMPLATE.format(
+            title=title[:300], brief=brief, style=self._style.strip()
+        )
         result = await self._client.images.generate(
             model=self._model,
             prompt=prompt,
