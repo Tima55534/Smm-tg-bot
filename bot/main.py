@@ -38,6 +38,7 @@ async def main() -> None:
         settings.openai_api_key,
         settings.image_model,
         settings.image_size,
+        settings.image_style,
         BASE_DIR / "data" / "images",
     )
 

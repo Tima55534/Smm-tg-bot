@@ -9,19 +9,20 @@ from openai import AsyncOpenAI
 IMAGE_PROMPT_TEMPLATE = """\
 Editorial illustration for a Telegram post about Uzbek tax/accounting/finance news.
 Topic: {title}
-Style: clean, modern, flat-design news illustration, no text, no letters, no logos."""
+Style: {style}"""
 
 
 class ImageAI:
-    def __init__(self, api_key: str, model: str, size: str, output_dir: Path):
+    def __init__(self, api_key: str, model: str, size: str, style: str, output_dir: Path):
         self._client = AsyncOpenAI(api_key=api_key)
         self._model = model
         self._size = size
+        self._style = style
         self._output_dir = output_dir
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
     async def generate(self, title: str) -> Path:
-        prompt = IMAGE_PROMPT_TEMPLATE.format(title=title[:300])
+        prompt = IMAGE_PROMPT_TEMPLATE.format(title=title[:300], style=self._style.strip())
         result = await self._client.images.generate(
             model=self._model,
             prompt=prompt,

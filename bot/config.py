@@ -49,6 +49,7 @@ class Settings:
     image_model: str
     image_size: str
     post_style: str
+    image_style: str
 
     db_path: Path
 
@@ -85,6 +86,7 @@ class Settings:
             image_model=raw["ai"]["image_model"],
             image_size=raw["ai"]["image_size"],
             post_style=raw["ai"]["post_style"],
+            image_style=raw["ai"]["image_style"],
             db_path=BASE_DIR / "data" / "bot.sqlite3",
         )
 

@@ -39,3 +39,8 @@ ai:
     Пиши кратко и по делу на русском языке, в стиле новостного Telegram-канала
     про бухгалтерию, налоги и финансы Узбекистана. 3-6 предложений, без воды,
     без хэштегов в начале, можно 2-3 релевантных хэштега в конце.
+  # style/color guidance passed to the image model for every generated picture
+  image_style: >
+    Flat-design editorial illustration, minimalistic, corporate finance theme.
+    Color palette: navy blue (#1F3B73), white, and gold/amber (#D4A24C) accents.
+    Clean geometric shapes, no text, no letters, no numbers, no logos, no watermarks.
