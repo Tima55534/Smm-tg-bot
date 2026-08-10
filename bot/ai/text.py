@@ -83,6 +83,10 @@ class TextAI:
             # Claude ignored the budget; better to drop the whole block-quote tail
             # than to risk truncating mid-tag and breaking Telegram's HTML parser.
             text = text[:1024].rsplit("<", 1)[0].rstrip()
+        if len(text) < 150:
+            # The source item probably had too little real content to work
+            # with — better to fail loudly than send a threadbare post.
+            raise ValueError(f"Generated post looks too short/broken: {text!r}")
         return text
 
     async def generate_poll(self, item: NewsItem) -> tuple[str, list[str]]:

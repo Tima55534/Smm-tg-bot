@@ -12,6 +12,11 @@ SESSION_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "teletho
 
 logger = logging.getLogger(__name__)
 
+# Skip short channel posts (photo-of-the-day captions, "today is Tuesday"
+# calendar reminders, currency-rate one-liners, hashtag-only posts) — there's
+# not enough real content in them to rewrite into a substantive post.
+MIN_TEXT_LENGTH = 200
+
 
 def _build_client(api_id: int, api_hash: str, session_string: str | None) -> TelegramClient:
     if session_string:
@@ -28,8 +33,11 @@ async def fetch_channel(
     client: TelegramClient, channel_username: str, limit: int = 5
 ) -> list[NewsItem]:
     items: list[NewsItem] = []
-    async for message in client.iter_messages(channel_username, limit=limit):
-        if not message.text:
+    # Scan more than `limit` raw messages since short ones get filtered out.
+    async for message in client.iter_messages(channel_username, limit=limit * 4):
+        if len(items) >= limit:
+            break
+        if not message.text or len(message.text) < MIN_TEXT_LENGTH:
             continue
         items.append(
             NewsItem(
