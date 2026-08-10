@@ -11,6 +11,10 @@ from .base import NewsItem
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; SmmNewsBot/1.0)"}
 DATE_RE = re.compile(r"(\d{2}\.\d{2}\.\d{4})")
 
+# Recurring calendar-reminder posts republished every month — not real news,
+# so they'd otherwise crowd out everything else at the top of the feed.
+SKIP_TITLE_RE = re.compile(r"^План главбуха на", re.IGNORECASE)
+
 
 async def fetch(url: str, limit: int = 5) -> list[NewsItem]:
     async with httpx.AsyncClient(headers=HEADERS, timeout=20.0, follow_redirects=True) as client:
@@ -30,6 +34,8 @@ async def fetch(url: str, limit: int = 5) -> list[NewsItem]:
 
         external_id = block["id"].removeprefix("pub_")
         title = link_el.get_text(strip=True)
+        if SKIP_TITLE_RE.match(title):
+            continue
         href = link_el["href"]
         full_url = href if href.startswith("http") else f"https://buxgalter.uz{href}"
 

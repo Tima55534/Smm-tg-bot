@@ -27,7 +27,7 @@ sources:
     - "bank_kuni"
 
 # How many source items to fetch/consider per pipeline run
-max_items_per_source: 5
+max_items_per_source: 8
 
 # Post text generation
 ai:
