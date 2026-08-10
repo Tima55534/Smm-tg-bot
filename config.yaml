@@ -41,6 +41,8 @@ ai:
     без хэштегов в начале, можно 2-3 релевантных хэштега в конце.
   # style/color guidance passed to the image model for every generated picture
   image_style: >
-    Flat-design editorial illustration, minimalistic, corporate finance theme.
-    Color palette: navy blue (#1F3B73), white, and gold/amber (#D4A24C) accents.
-    Clean geometric shapes, no text, no letters, no numbers, no logos, no watermarks.
+    Minimalist dark modern illustration, high contrast, bold geometric composition.
+    Color palette: near-black background (#262626), dark gray (#444444) shapes,
+    and a single vivid lime-green accent color (#D2FF28) used sparingly for the
+    focal element. Clean flat shapes, strong negative space, tech/startup poster
+    aesthetic. No text, no letters, no numbers, no logos, no watermarks.
