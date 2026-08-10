@@ -49,19 +49,18 @@ GLOSS_PROMPT = """\
 
 {items}
 
-Для каждой темы напиши 1-2 предложения на русском (примерно 20-40 слов),
-которые понятным языком объясняют редактору: (а) что означает заголовок,
-если это хэштег или неочевидная фраза, и (б) о чём именно эта новость —
-конкретные факты, а не общие слова. Редактор должен понять суть, не открывая
-источник. Если это не новость, а реклама/розыгрыш/шаблонный пост — прямо
-скажи об этом.
+Для каждой темы напиши РОВНО ОДНО предложение на русском, НЕ ДЛИННЕЕ 25 слов
+(это жёсткий лимит, считай слова), которое понятным языком объясняет
+редактору: что означает заголовок (если это хэштег/неочевидная фраза) И о чём
+именно новость — самый главный факт, без второстепенных деталей. Редактор
+должен понять суть, не открывая источник. Если это не новость, а
+реклама/розыгрыш/шаблонный пост — начни с пометки "[не новость]".
 
-Ответь СТРОГО JSON-массивом из {count} строк в том же порядке, без пояснений.
-Каждая строка массива — обычная однострочная JSON-строка, БЕЗ переносов строк
-внутри неё (пиши весь текст темы в одну строку, раздели предложения точкой,
-а не Enter'ом).
-Пример формата (ровно так, каждый элемент на одной строке):
-["Меняются сроки сдачи НДС: с 2027 года отчёт подают до 15 числа вместо 20-го. Коснётся всех плательщиков НДС.", "Рекламный розыгрыш от банка среди держателей карт. Это не новость, для канала не подходит."]"""
+Ответь СТРОГО JSON-массивом из {count} строк в том же порядке, без пояснений
+и без Markdown. Каждая строка массива — однострочная JSON-строка, БЕЗ
+переносов строк внутри неё.
+Пример формата (ровно так, каждый элемент — одно короткое предложение):
+["С 2027 года НДС сдают до 15 числа вместо 20-го.", "[не новость] Рекламный розыгрыш банка среди держателей карт."]"""
 
 IMAGE_BRIEF_PROMPT = """\
 Заголовок новости: {title}
@@ -109,7 +108,7 @@ class TextAI:
         )
         message = await self._client.messages.create(
             model=self._model,
-            max_tokens=600,
+            max_tokens=2000,
             messages=[{"role": "user", "content": prompt}],
         )
         text = "".join(block.text for block in message.content if block.type == "text").strip()
@@ -127,7 +126,7 @@ class TextAI:
         prompt = POLL_PROMPT.format(title=item.title, text=item.text[:4000])
         message = await self._client.messages.create(
             model=self._model,
-            max_tokens=400,
+            max_tokens=1000,
             messages=[{"role": "user", "content": prompt}],
         )
         raw = "".join(block.text for block in message.content if block.type == "text").strip()
@@ -167,7 +166,7 @@ class TextAI:
         try:
             message = await self._client.messages.create(
                 model=self._model,
-                max_tokens=400,
+                max_tokens=1000,
                 messages=[{"role": "user", "content": prompt}],
             )
             raw = "".join(
@@ -196,7 +195,7 @@ class TextAI:
         try:
             message = await self._client.messages.create(
                 model=self._model,
-                max_tokens=1000,
+                max_tokens=4000,
                 messages=[{"role": "user", "content": prompt}],
             )
             raw = "".join(
@@ -228,7 +227,7 @@ class TextAI:
         try:
             message = await self._client.messages.create(
                 model=self._model,
-                max_tokens=100,
+                max_tokens=600,
                 messages=[{"role": "user", "content": prompt}],
             )
             text = "".join(
