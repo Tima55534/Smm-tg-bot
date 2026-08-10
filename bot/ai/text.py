@@ -7,8 +7,9 @@ from anthropic import AsyncAnthropic
 
 from ..sources.base import NewsItem
 
-# Telegram photo caption limit is 1024 chars; leave headroom for the AI's imprecision.
-POST_CHAR_BUDGET = 900
+# Telegram photo caption limit is 1024 chars; leave headroom for HTML tags and
+# the AI's imprecision so truncation (which could cut a tag in half) is rare.
+POST_CHAR_BUDGET = 750
 
 POST_PROMPT = """\
 {style}
@@ -18,8 +19,13 @@ POST_PROMPT = """\
 Текст новости:
 {text}
 
-Перепиши это в готовый пост для Telegram-канала (не длиннее {budget} символов,
-включая пробелы). Ответь ТОЛЬКО текстом поста, без пояснений и без markdown-заголовков."""
+Перепиши это в готовый пост для Telegram-канала (весь видимый текст не длиннее
+{budget} символов, включая пробелы — HTML-теги в этот лимит не считаются).
+
+Форматирование — строго HTML-подмножество, которое понимает Telegram Bot API:
+разрешены только теги <b>, <i>, <blockquote>, ничего больше (никакого markdown
+вроде ** или ##, никаких <p>, <div>, <ul>, <li>). Каждый открытый тег должен
+быть закрыт. Ответь ТОЛЬКО готовым HTML-текстом поста, без пояснений от себя."""
 
 POLL_PROMPT = """\
 На основе этой новости сформулируй опрос для Telegram-канала на русском языке.
@@ -54,7 +60,11 @@ class TextAI:
             messages=[{"role": "user", "content": prompt}],
         )
         text = "".join(block.text for block in message.content if block.type == "text").strip()
-        return text[:1024]
+        if len(text) > 1024:
+            # Claude ignored the budget; better to drop the whole block-quote tail
+            # than to risk truncating mid-tag and breaking Telegram's HTML parser.
+            text = text[:1024].rsplit("<", 1)[0].rstrip()
+        return text
 
     async def generate_poll(self, item: NewsItem) -> tuple[str, list[str]]:
         prompt = POLL_PROMPT.format(title=item.title, text=item.text[:4000])

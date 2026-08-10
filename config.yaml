@@ -36,13 +36,35 @@ ai:
   image_size: "1024x1024"
   # style guidance passed to Claude when rewriting a news item into a post
   post_style: >
-    Пиши кратко и по делу на русском языке, в стиле новостного Telegram-канала
-    про бухгалтерию, налоги и финансы Узбекистана. 3-6 предложений, без воды,
-    без хэштегов в начале, можно 2-3 релевантных хэштега в конце.
+    Пиши на русском языке в стиле экспертного Telegram-канала про бухгалтерию,
+    налоги и финансы Узбекистана. Короткие абзацы (1-2 предложения), без воды.
+
+    Структура поста:
+    1. Первая строка — жирный заголовок-крючок: короткая фраза, цепляющая
+       вопросом или фактом (тег <b>...</b>).
+    2. 1-2 коротких абзаца, вводящих в суть новости простым языком.
+    3. Если в новости есть ключевой факт, определение, цифра, срок или список
+       условий — вынеси это в блок <blockquote>...</blockquote>. Внутри блока
+       можно использовать список из 2-4 пунктов через "• " на отдельных строках.
+    4. Короткий поясняющий абзац после блока-цитаты (что это значит на практике).
+    5. Заключительная строка с эмодзи-маркером (📌 ⚡️ 💬 🔔 ✅ — выбери один
+       подходящий по смыслу) и коротким выводом: что делать или на что обратить
+       внимание.
+
+    Используй релевантные эмодзи как визуальные маркеры, не больше 3-4 на весь
+    пост. Тон деловой и экспертный, БЕЗ продающих призывов и фраз про срочность
+    вроде "успей записаться" — это новостной, а не рекламный канал. В конце можно
+    добавить 2-3 релевантных хэштега на отдельной строке.
   # style/color guidance passed to the image model for every generated picture
   image_style: >
-    Minimalist dark modern illustration, high contrast, bold geometric composition.
-    Color palette: near-black background (#262626), dark gray (#444444) shapes,
-    and a single vivid lime-green accent color (#D2FF28) used sparingly for the
-    focal element. Clean flat shapes, strong negative space, tech/startup poster
-    aesthetic. No text, no letters, no numbers, no logos, no watermarks.
+    High-end poster / key-visual design, like a premium tech startup announcement
+    graphic. Near-black background (#262626 / #1a1a1a), dramatic single-source
+    studio lighting, one bold 3D-rendered or richly-shaded hero object floating
+    in frame (e.g. a glowing badge, a stamped document, a coin, a shield, a
+    checkmark seal, a gauge, an abstract crystal/gem shape — pick something that
+    fits the news topic) with a strong lime-green glow (#D2FF28) as rim light or
+    emissive accent, plus dark gray (#444444) secondary surfaces. Cinematic depth
+    of field, soft shadows, subtle grid or particle texture in the background.
+    Strictly AVOID: flat vector clipart, generic icon-style illustrations,
+    silhouettes of businesspeople, laptops, clipboards, checklists, or any
+    stock-icon-set look. No text, no letters, no numbers, no logos, no watermarks.

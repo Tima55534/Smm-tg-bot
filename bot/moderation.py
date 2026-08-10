@@ -42,12 +42,15 @@ async def send_draft_for_moderation(
     kb = _keyboard(draft_id)
 
     if draft.kind == "post":
-        caption = (draft.body or "")[:900]
-        caption += f"\n\n— черновик #{draft_id}"
+        caption = f"{draft.body or ''}\n\n— черновик #{draft_id}"
+        if len(caption) > 1024:
+            # draft.body is already <=1024 and HTML-tag-safe; drop the footer
+            # rather than risk cutting a tag in half.
+            caption = draft.body or ""
         message = await bot.send_photo(
             settings.moderation_chat_id,
             photo=FSInputFile(draft.image_path),
-            caption=caption[:1024],
+            caption=caption,
             reply_markup=kb,
         )
     else:
