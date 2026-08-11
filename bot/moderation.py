@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import logging
 from typing import TYPE_CHECKING
 
@@ -54,8 +55,9 @@ async def send_draft_for_moderation(
             reply_markup=kb,
         )
     else:
-        options_text = "\n".join(f"• {o}" for o in draft.poll_options)
-        text = f"Опрос (черновик #{draft_id})\n\n{draft.poll_question}\n\n{options_text}"
+        options_text = "\n".join(f"• {html.escape(o)}" for o in draft.poll_options)
+        question = html.escape(draft.poll_question or "")
+        text = f"Опрос (черновик #{draft_id})\n\n{question}\n\n{options_text}"
         message = await bot.send_message(settings.moderation_chat_id, text, reply_markup=kb)
 
     await db.set_moderation_message(draft_id, message.chat.id, message.message_id)

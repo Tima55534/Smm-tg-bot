@@ -93,13 +93,13 @@ def build_router(services: "Services", scheduler: "AsyncIOScheduler", scheduled_
                 "Текущее расписание: раз в "
                 f"{services.settings.interval_days} дн., в {services.settings.schedule_time} "
                 f"({services.settings.timezone}).\nСледующий запуск: {next_run}\n\n"
-                "Чтобы изменить: /schedule <дни> <ЧЧ:ММ>\nНапример: /schedule 3 09:00"
+                "Чтобы изменить: /schedule [дни] [ЧЧ:ММ]\nНапример: /schedule 3 09:00"
             )
             return
 
         if len(args) != 2 or not args[0].isdigit() or int(args[0]) < 1:
             await message.reply(
-                "Формат: /schedule <дни> <ЧЧ:ММ>, например /schedule 3 09:00 "
+                "Формат: /schedule [дни] [ЧЧ:ММ], например /schedule 3 09:00 "
                 "(дни — целое число ≥ 1)."
             )
             return
