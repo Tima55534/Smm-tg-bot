@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import html
 import logging
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 from aiogram import Bot, Router
 from aiogram.types import (
@@ -13,9 +15,11 @@ from aiogram.types import (
 )
 
 from .config import Settings
-from .db import Database
+from .db import Database, Draft
 
 if TYPE_CHECKING:
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
     from .pipeline import Services
 
 logger = logging.getLogger(__name__)
@@ -63,40 +67,84 @@ async def send_draft_for_moderation(
     await db.set_moderation_message(draft_id, message.chat.id, message.message_id)
 
 
-async def publish_draft(bot: Bot, db: Database, settings: Settings, draft_id: int) -> list[str]:
-    """Publish to every configured channel. Returns a list of per-channel
-    error strings (empty if all succeeded). Raises only if EVERY channel
-    failed, so the draft doesn't get marked published for nothing."""
+async def _publish_to_channel(bot: Bot, channel_id: str, draft: Draft) -> None:
+    if draft.kind == "post":
+        await bot.send_photo(
+            channel_id,
+            photo=FSInputFile(draft.image_path),
+            caption=(draft.body or "")[:1024],
+        )
+    else:
+        await bot.send_poll(
+            channel_id,
+            question=draft.poll_question,
+            options=draft.poll_options,
+            is_anonymous=True,
+        )
+
+
+async def _publish_to_channel_logged(bot: Bot, channel_id: str, draft_id: int, draft: Draft) -> None:
+    try:
+        await _publish_to_channel(bot, channel_id, draft)
+    except Exception:
+        logger.exception("Delayed publish of draft %s to channel %s failed", draft_id, channel_id)
+
+
+async def publish_draft(
+    bot: Bot,
+    db: Database,
+    settings: Settings,
+    draft_id: int,
+    scheduler: "AsyncIOScheduler | None" = None,
+) -> tuple[list[str], list[str]]:
+    """Publish to the first configured channel immediately; every channel
+    after that is delayed by `secondary_channel_delay_minutes` (0 = also
+    immediate). Returns (immediate_errors, delayed_channel_ids) — raises
+    only if the first (immediate) channel fails, since that's the one the
+    admin is actively waiting on."""
     draft = await db.get_draft(draft_id)
     if draft is None:
         raise ValueError(f"Draft {draft_id} not found")
 
-    errors = []
-    for channel_id in settings.target_channel_ids:
-        try:
-            if draft.kind == "post":
-                await bot.send_photo(
-                    channel_id,
-                    photo=FSInputFile(draft.image_path),
-                    caption=(draft.body or "")[:1024],
-                )
-            else:
-                await bot.send_poll(
-                    channel_id,
-                    question=draft.poll_question,
-                    options=draft.poll_options,
-                    is_anonymous=True,
-                )
-        except Exception as exc:
-            logger.exception("Failed to publish draft %s to channel %s", draft_id, channel_id)
-            errors.append(f"{channel_id}: {exc}")
+    channels = settings.target_channel_ids
+    if not channels:
+        raise RuntimeError("No target channels configured")
 
-    if len(errors) == len(settings.target_channel_ids):
-        # Every channel failed — don't mark as published, let the admin retry.
-        raise RuntimeError(f"Publish failed on all channels: {'; '.join(errors)}")
+    immediate_channel, *rest = channels
+    delay = settings.secondary_channel_delay_minutes
+
+    errors: list[str] = []
+    try:
+        await _publish_to_channel(bot, immediate_channel, draft)
+    except Exception as exc:
+        logger.exception("Failed to publish draft %s to channel %s", draft_id, immediate_channel)
+        raise RuntimeError(f"{immediate_channel}: {exc}") from exc
 
     await db.set_status(draft_id, "published")
-    return errors
+
+    scheduled_channels: list[str] = []
+    if rest and delay > 0 and scheduler is not None:
+        run_at = datetime.now(ZoneInfo(settings.timezone)) + timedelta(minutes=delay)
+        for i, channel_id in enumerate(rest):
+            scheduler.add_job(
+                _publish_to_channel_logged,
+                trigger="date",
+                run_date=run_at,
+                args=[bot, channel_id, draft_id, draft],
+                id=f"delayed_publish_{draft_id}_{i}",
+                replace_existing=True,
+            )
+            scheduled_channels.append(channel_id)
+        logger.info("Scheduled delayed publish of draft %s to %s at %s", draft_id, rest, run_at)
+    else:
+        for channel_id in rest:
+            try:
+                await _publish_to_channel(bot, channel_id, draft)
+            except Exception as exc:
+                logger.exception("Failed to publish draft %s to channel %s", draft_id, channel_id)
+                errors.append(f"{channel_id}: {exc}")
+
+    return errors, scheduled_channels
 
 
 def build_router(services: "Services") -> Router:
@@ -117,7 +165,9 @@ def build_router(services: "Services") -> Router:
 
         if action == "approve":
             try:
-                errors = await publish_draft(services.bot, services.db, services.settings, draft_id)
+                errors, scheduled = await publish_draft(
+                    services.bot, services.db, services.settings, draft_id, services.scheduler
+                )
             except Exception:
                 logger.exception("Failed to publish draft %s", draft_id)
                 await callback.answer("Ошибка публикации, см. логи", show_alert=True)
@@ -129,6 +179,13 @@ def build_router(services: "Services") -> Router:
                     f"Ошибки: {'; '.join(errors)}"
                 )
                 await callback.answer("Опубликовано частично", show_alert=True)
+            elif scheduled:
+                delay = services.settings.secondary_channel_delay_minutes
+                await callback.message.reply(
+                    f"Опубликовано (черновик #{draft_id}) ✅\n"
+                    f"В остальные каналы уйдёт через {delay} мин.: {', '.join(scheduled)}"
+                )
+                await callback.answer("Опубликовано")
             else:
                 await callback.message.reply(f"Опубликовано (черновик #{draft_id}) ✅")
                 await callback.answer("Опубликовано")

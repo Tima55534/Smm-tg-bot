@@ -3,8 +3,10 @@ from __future__ import annotations
 import html
 import logging
 from dataclasses import dataclass
+from typing import Optional
 
 from aiogram import Bot
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from .ai.image import ImageAI
 from .ai.text import TextAI
@@ -37,6 +39,7 @@ class Services:
     settings: Settings
     text_ai: TextAI
     image_ai: ImageAI
+    scheduler: Optional[AsyncIOScheduler] = None
 
 
 async def collect_candidates(settings: Settings, db: Database) -> list[NewsItem]:

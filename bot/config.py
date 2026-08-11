@@ -42,6 +42,7 @@ class Settings:
     timezone: str
     poll_every_n_posts: int
     max_items_per_source: int
+    secondary_channel_delay_minutes: int
 
     web_sources: list[WebSource]
     telegram_channels: list[str]
@@ -97,6 +98,7 @@ class Settings:
             timezone=str(raw["schedule"]["timezone"]),
             poll_every_n_posts=int(raw["poll_every_n_posts"]),
             max_items_per_source=int(raw["max_items_per_source"]),
+            secondary_channel_delay_minutes=int(raw.get("secondary_channel_delay_minutes", 0)),
             web_sources=web_sources,
             telegram_channels=list(raw["sources"]["telegram"]),
             text_model=raw["ai"]["text_model"],

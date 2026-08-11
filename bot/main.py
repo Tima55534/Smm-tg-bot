@@ -65,6 +65,7 @@ async def main() -> None:
         settings.schedule_time,
         settings.timezone,
     )
+    services.scheduler = scheduler
 
     dp.include_router(build_moderation_router(services))
     dp.include_router(build_topics_router(services))

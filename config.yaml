@@ -9,6 +9,11 @@ schedule:
 # Set to 0 to disable automatic polls (still available via /poll command).
 poll_every_n_posts: 4
 
+# When publishing to more than one channel (TARGET_CHANNEL_ID / _ID2 / ...),
+# the first channel is published to immediately; every channel after that is
+# delayed by this many minutes. Set to 0 to publish to all channels at once.
+secondary_channel_delay_minutes: 60
+
 # Sources to collect news/data from
 sources:
   web:
