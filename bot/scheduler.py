@@ -10,12 +10,15 @@ from apscheduler.triggers.interval import IntervalTrigger
 logger = logging.getLogger(__name__)
 
 
-def build_scheduler(
+def schedule_job(
+    scheduler: AsyncIOScheduler,
     callback,
     interval_days: int,
     schedule_time: str,
     timezone: str,
-) -> AsyncIOScheduler:
+) -> datetime:
+    """(Re)schedule the recurring pipeline job. Safe to call again later with
+    new values — replace_existing swaps out the previous job/trigger."""
     tz = ZoneInfo(timezone)
     hour, minute = (int(p) for p in schedule_time.split(":"))
 
@@ -24,7 +27,6 @@ def build_scheduler(
     if first_run <= now:
         first_run += timedelta(days=1)
 
-    scheduler = AsyncIOScheduler(timezone=tz)
     scheduler.add_job(
         callback,
         trigger=IntervalTrigger(days=interval_days, start_date=first_run),
@@ -32,4 +34,15 @@ def build_scheduler(
         replace_existing=True,
     )
     logger.info("Scheduled pipeline job: every %s day(s), first run at %s", interval_days, first_run)
+    return first_run
+
+
+def build_scheduler(
+    callback,
+    interval_days: int,
+    schedule_time: str,
+    timezone: str,
+) -> AsyncIOScheduler:
+    scheduler = AsyncIOScheduler(timezone=ZoneInfo(timezone))
+    schedule_job(scheduler, callback, interval_days, schedule_time, timezone)
     return scheduler

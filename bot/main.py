@@ -14,7 +14,7 @@ from .db import Database
 from .handlers.admin import build_router as build_admin_router
 from .moderation import build_router as build_moderation_router
 from .pipeline import Services, start_topic_selection
-from .scheduler import build_scheduler
+from .scheduler import build_scheduler, schedule_job
 from .topics import build_router as build_topics_router
 
 logging.basicConfig(
@@ -27,6 +27,14 @@ logger = logging.getLogger(__name__)
 async def main() -> None:
     db = Database(settings.db_path)
     await db.connect()
+
+    # Runtime overrides from /schedule take precedence over config.yaml.
+    stored_interval = await db.get_setting("interval_days")
+    if stored_interval is not None:
+        settings.interval_days = int(stored_interval)
+    stored_time = await db.get_setting("schedule_time")
+    if stored_time is not None:
+        settings.schedule_time = stored_time
 
     bot = Bot(
         token=settings.bot_token,
@@ -45,10 +53,6 @@ async def main() -> None:
 
     services = Services(bot=bot, db=db, settings=settings, text_ai=text_ai, image_ai=image_ai)
 
-    dp.include_router(build_moderation_router(services))
-    dp.include_router(build_topics_router(services))
-    dp.include_router(build_admin_router(services))
-
     async def scheduled_run() -> None:
         try:
             await start_topic_selection(services)
@@ -61,6 +65,11 @@ async def main() -> None:
         settings.schedule_time,
         settings.timezone,
     )
+
+    dp.include_router(build_moderation_router(services))
+    dp.include_router(build_topics_router(services))
+    dp.include_router(build_admin_router(services, scheduler, scheduled_run))
+
     scheduler.start()
 
     logger.info("Bot started, polling for updates")

@@ -67,6 +67,13 @@ CREATE TABLE IF NOT EXISTS topic_feedback (
     selected INTEGER NOT NULL,
     decided_at REAL NOT NULL
 );
+
+-- Simple key/value store for settings changed at runtime via bot commands
+-- (e.g. /schedule), so they override config.yaml without a redeploy.
+CREATE TABLE IF NOT EXISTS bot_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 
@@ -360,3 +367,18 @@ class Database:
         )
         rows = await cur.fetchall()
         return [(r["title"], bool(r["selected"])) for r in rows]
+
+    # -- runtime settings -------------------------------------------------
+
+    async def get_setting(self, key: str) -> Optional[str]:
+        cur = await self.conn.execute("SELECT value FROM bot_settings WHERE key = ?", (key,))
+        row = await cur.fetchone()
+        return row["value"] if row else None
+
+    async def set_setting(self, key: str, value: str) -> None:
+        await self.conn.execute(
+            "INSERT INTO bot_settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )
+        await self.conn.commit()
