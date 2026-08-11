@@ -10,6 +10,18 @@ from ..sources.base import NewsItem
 
 logger = logging.getLogger(__name__)
 
+CYRILLIC_RE = re.compile(r"[Ѐ-ӿ]")
+
+TRANSLITERATE_PROMPT = """\
+Quyidagi matnda ba'zi joylari Kirill yozuvida qolib ketgan (bo'lishi kerak
+emas). Butun matnni, so'zma-so'z, faqat yozuvni Kirilldan lotin o'zbek
+yozuviga o'tkazib qayta yoz — mazmunni, uslubni, barcha HTML teglarini
+(<b>, <i>, <blockquote> va h.k.) va formatlashni ANIQ saqlab qol, hech narsa
+qo'shma yoki olib tashlama. Javobda faqat lotin yozuvidagi matnni ber, hech
+qanday izohsiz:
+
+{text}"""
+
 # Telegram photo caption limit is 1024 chars; leave headroom for HTML tags and
 # the AI's imprecision so truncation (which could cut a tag in half) is rare.
 POST_CHAR_BUDGET = 750
@@ -28,10 +40,18 @@ POST_PROMPT = """\
 Форматирование — строго HTML-подмножество, которое понимает Telegram Bot API:
 разрешены только теги <b>, <i>, <blockquote>, ничего больше (никакого markdown
 вроде ** или ##, никаких <p>, <div>, <ul>, <li>). Каждый открытый тег должен
-быть закрыт. Ответь ТОЛЬКО готовым HTML-текстом поста, без пояснений от себя."""
+быть закрыт.
+
+ВАЖНО про алфавит: пиши ИСКЛЮЧИТЕЛЬНО латиницей (o'zbek lotin alifbosi), даже
+если исходная новость на русском или узбекской кириллице. НЕ используй ни
+одной кириллической буквы (никаких а, б, в, г, ў, қ, ғ, ҳ и т.д.) — включая
+названия, термины и цифры-прописью из источника: их тоже нужно передать
+латиницей. Это правило важнее стиля источника.
+
+Ответь ТОЛЬКО готовым HTML-текстом поста, без пояснений от себя."""
 
 POLL_PROMPT = """\
-На основе этой новости сформулируй опрос для Telegram-канала на русском языке.
+На основе этой новости сформулируй опрос для Telegram-канала.
 
 Заголовок: {title}
 Текст:
@@ -41,7 +61,12 @@ POLL_PROMPT = """\
 {{"question": "...", "options": ["...", "...", "..."]}}
 
 Требования: question до 250 символов, от 2 до 5 вариантов ответа,
-каждый вариант до 90 символов, варианты короткие и осмысленные."""
+каждый вариант до 90 символов, варианты короткие и осмысленные.
+
+ВАЖНО про язык и алфавит: question и все options — ИСКЛЮЧИТЕЛЬНО на
+узбекском языке латиницей (o'zbek lotin alifbosi), даже если заголовок/текст
+новости на русском или узбекской кириллице. Ни одной кириллической буквы в
+ответе быть не должно."""
 
 GLOSS_PROMPT = """\
 Вот список тем новостей (заголовки могут быть хэштегами или неинформативными),
@@ -99,6 +124,17 @@ class TextAI:
         self._client = AsyncAnthropic(api_key=api_key)
         self._model = model
 
+    async def _transliterate_to_latin(self, text: str) -> str:
+        prompt = TRANSLITERATE_PROMPT.format(text=text)
+        message = await self._client.messages.create(
+            model=self._model,
+            max_tokens=2000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return "".join(
+            block.text for block in message.content if block.type == "text"
+        ).strip()
+
     async def rewrite_post(self, item: NewsItem, style: str) -> str:
         prompt = POST_PROMPT.format(
             style=style.strip(),
@@ -113,6 +149,14 @@ class TextAI:
             messages=[{"role": "user", "content": prompt}],
         )
         text = "".join(block.text for block in message.content if block.type == "text").strip()
+
+        if CYRILLIC_RE.search(text):
+            # Claude sometimes mirrors the source script (Russian/Uzbek Cyrillic)
+            # instead of following the Latin-script instruction — fix it up
+            # with a dedicated transliteration pass rather than shipping it.
+            logger.warning("rewrite_post produced Cyrillic text, retrying as transliteration")
+            text = await self._transliterate_to_latin(text)
+
         if len(text) > 1024:
             # Claude ignored the budget; better to drop the whole block-quote tail
             # than to risk truncating mid-tag and breaking Telegram's HTML parser.
@@ -121,6 +165,8 @@ class TextAI:
             # The source item probably had too little real content to work
             # with — better to fail loudly than send a threadbare post.
             raise ValueError(f"Generated post looks too short/broken: {text!r}")
+        if CYRILLIC_RE.search(text):
+            raise ValueError(f"Generated post still has Cyrillic after retry: {text!r}")
         return text
 
     async def generate_poll(self, item: NewsItem) -> tuple[str, list[str]]:
@@ -141,6 +187,14 @@ class TextAI:
         options = [str(opt)[:90] for opt in data["options"]][:5]
         if len(options) < 2:
             raise ValueError(f"Poll needs at least 2 options, got: {options!r}")
+
+        if CYRILLIC_RE.search(question) or any(CYRILLIC_RE.search(o) for o in options):
+            logger.warning("generate_poll produced Cyrillic text, retrying as transliteration")
+            question = await self._transliterate_to_latin(question)
+            options = [await self._transliterate_to_latin(o) for o in options]
+            if CYRILLIC_RE.search(question) or any(CYRILLIC_RE.search(o) for o in options):
+                raise ValueError(f"Poll still has Cyrillic after retry: {question!r} {options!r}")
+
         return question, options
 
     async def suggest_topic_relevance(
