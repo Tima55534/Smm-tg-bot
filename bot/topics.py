@@ -18,11 +18,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _display_text(item: TopicBatchItem) -> str:
+    # The gloss is always generated in Uzbek Latin script; the raw source
+    # title can be in Russian or Uzbek Cyrillic (buxgalter.uz, soliq.uz), so
+    # prefer the gloss for display and only fall back to the raw title if the
+    # gloss generation failed for this item.
+    return item.gloss if item.gloss and item.gloss != item.title else item.title
+
+
 def _build_keyboard(items: list[TopicBatchItem]) -> InlineKeyboardMarkup:
     rows = []
     for item in items:
         mark = "✅" if item.selected else "⬜"
-        label = f"{mark} {item.idx + 1}. {item.title[:55]}"
+        label = f"{mark} {item.idx + 1}. {_display_text(item)[:55]}"
         rows.append(
             [InlineKeyboardButton(text=label, callback_data=f"topic:{item.batch_id}:t:{item.id}")]
         )
@@ -37,9 +45,7 @@ def _build_text(items: list[TopicBatchItem]) -> str:
     lines = ["Выберите темы для постов (нажмите на тему, чтобы отметить/снять):", ""]
     for item in items:
         mark = "✅" if item.selected else "⬜"
-        lines.append(f"{mark} {item.idx + 1}. {html.escape(item.title)}")
-        if item.gloss and item.gloss != item.title:
-            lines.append(f"    <i>{html.escape(item.gloss)}</i>")
+        lines.append(f"{mark} {item.idx + 1}. {html.escape(_display_text(item))}")
     return "\n".join(lines)
 
 
