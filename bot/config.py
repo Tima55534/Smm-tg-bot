@@ -29,7 +29,7 @@ class WebSource:
 class Settings:
     bot_token: str
     moderation_chat_id: int
-    target_channel_id: str
+    target_channel_ids: list[str]
     telegram_api_id: int
     telegram_api_hash: str
     telegram_phone: str
@@ -70,7 +70,9 @@ class Settings:
         return cls(
             bot_token=_require("BOT_TOKEN"),
             moderation_chat_id=int(_require("MODERATION_CHAT_ID")),
-            target_channel_id=_require("TARGET_CHANNEL_ID"),
+            target_channel_ids=[
+                c.strip() for c in _require("TARGET_CHANNEL_ID").split(",") if c.strip()
+            ],
             telegram_api_id=int(_require("TELEGRAM_API_ID")),
             telegram_api_hash=_require("TELEGRAM_API_HASH"),
             telegram_phone=_require("TELEGRAM_PHONE"),

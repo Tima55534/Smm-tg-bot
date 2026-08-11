@@ -63,26 +63,40 @@ async def send_draft_for_moderation(
     await db.set_moderation_message(draft_id, message.chat.id, message.message_id)
 
 
-async def publish_draft(bot: Bot, db: Database, settings: Settings, draft_id: int) -> None:
+async def publish_draft(bot: Bot, db: Database, settings: Settings, draft_id: int) -> list[str]:
+    """Publish to every configured channel. Returns a list of per-channel
+    error strings (empty if all succeeded). Raises only if EVERY channel
+    failed, so the draft doesn't get marked published for nothing."""
     draft = await db.get_draft(draft_id)
     if draft is None:
         raise ValueError(f"Draft {draft_id} not found")
 
-    if draft.kind == "post":
-        await bot.send_photo(
-            settings.target_channel_id,
-            photo=FSInputFile(draft.image_path),
-            caption=(draft.body or "")[:1024],
-        )
-    else:
-        await bot.send_poll(
-            settings.target_channel_id,
-            question=draft.poll_question,
-            options=draft.poll_options,
-            is_anonymous=True,
-        )
+    errors = []
+    for channel_id in settings.target_channel_ids:
+        try:
+            if draft.kind == "post":
+                await bot.send_photo(
+                    channel_id,
+                    photo=FSInputFile(draft.image_path),
+                    caption=(draft.body or "")[:1024],
+                )
+            else:
+                await bot.send_poll(
+                    channel_id,
+                    question=draft.poll_question,
+                    options=draft.poll_options,
+                    is_anonymous=True,
+                )
+        except Exception as exc:
+            logger.exception("Failed to publish draft %s to channel %s", draft_id, channel_id)
+            errors.append(f"{channel_id}: {exc}")
+
+    if len(errors) == len(settings.target_channel_ids):
+        # Every channel failed — don't mark as published, let the admin retry.
+        raise RuntimeError(f"Publish failed on all channels: {'; '.join(errors)}")
 
     await db.set_status(draft_id, "published")
+    return errors
 
 
 def build_router(services: "Services") -> Router:
@@ -103,14 +117,21 @@ def build_router(services: "Services") -> Router:
 
         if action == "approve":
             try:
-                await publish_draft(services.bot, services.db, services.settings, draft_id)
+                errors = await publish_draft(services.bot, services.db, services.settings, draft_id)
             except Exception:
                 logger.exception("Failed to publish draft %s", draft_id)
                 await callback.answer("Ошибка публикации, см. логи", show_alert=True)
                 return
             await callback.message.edit_reply_markup(reply_markup=None)
-            await callback.message.reply(f"Опубликовано (черновик #{draft_id}) ✅")
-            await callback.answer("Опубликовано")
+            if errors:
+                await callback.message.reply(
+                    f"Опубликовано (черновик #{draft_id}), но не во все каналы ⚠️\n"
+                    f"Ошибки: {'; '.join(errors)}"
+                )
+                await callback.answer("Опубликовано частично", show_alert=True)
+            else:
+                await callback.message.reply(f"Опубликовано (черновик #{draft_id}) ✅")
+                await callback.answer("Опубликовано")
         elif action == "reject":
             await services.db.set_status(draft_id, "rejected")
             await callback.message.edit_reply_markup(reply_markup=None)
