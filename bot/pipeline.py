@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import logging
 from dataclasses import dataclass
 
@@ -14,6 +15,19 @@ from .sources import buxgalter, lex_uz, soliq, telegram_channels
 from .sources.base import NewsItem
 
 logger = logging.getLogger(__name__)
+
+SOURCE_LINE_LABEL = "Manba"  # "Source" in Uzbek, matching the posts' language
+
+
+def _with_source_line(body: str, item: NewsItem) -> str:
+    if not item.url:
+        return body
+    source_line = f'\n\n<i>{SOURCE_LINE_LABEL}: <a href="{html.escape(item.url)}">havola</a></i>'
+    max_body_len = 1024 - len(source_line)
+    if len(body) > max_body_len:
+        # Trim the body (not mid-tag) rather than drop the source line.
+        body = body[:max_body_len].rsplit("<", 1)[0].rstrip()
+    return body + source_line
 
 
 @dataclass
@@ -95,6 +109,7 @@ async def generate_draft_for_item(
         )
     else:
         body = await services.text_ai.rewrite_post(item, services.settings.post_style)
+        body = _with_source_line(body, item)
         image_brief = await services.text_ai.suggest_image_brief(item)
         image_path = await services.image_ai.generate(item.title, image_brief)
         draft_id = await services.db.create_draft(

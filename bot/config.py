@@ -67,12 +67,25 @@ class Settings:
             type_ = item.pop("type")
             web_sources.append(WebSource(name=name, type=type_, options=item))
 
+        # TARGET_CHANNEL_ID accepts a comma-separated list; TARGET_CHANNEL_ID2,
+        # TARGET_CHANNEL_ID3, ... are also picked up as additional channels,
+        # for platforms like Railway where separate named variables are more
+        # natural to add than editing one into a comma-joined value.
+        target_channel_ids = [
+            c.strip() for c in _require("TARGET_CHANNEL_ID").split(",") if c.strip()
+        ]
+        n = 2
+        while True:
+            extra = os.environ.get(f"TARGET_CHANNEL_ID{n}")
+            if not extra:
+                break
+            target_channel_ids += [c.strip() for c in extra.split(",") if c.strip()]
+            n += 1
+
         return cls(
             bot_token=_require("BOT_TOKEN"),
             moderation_chat_id=int(_require("MODERATION_CHAT_ID")),
-            target_channel_ids=[
-                c.strip() for c in _require("TARGET_CHANNEL_ID").split(",") if c.strip()
-            ],
+            target_channel_ids=target_channel_ids,
             telegram_api_id=int(_require("TELEGRAM_API_ID")),
             telegram_api_hash=_require("TELEGRAM_API_HASH"),
             telegram_phone=_require("TELEGRAM_PHONE"),
