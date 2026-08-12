@@ -36,6 +36,9 @@ async def main() -> None:
     stored_time = await db.get_setting("schedule_time")
     if stored_time is not None:
         settings.schedule_time = stored_time
+    stored_publish_time = await db.get_setting("publish_time")
+    if stored_publish_time is not None:
+        settings.publish_time = stored_publish_time
 
     bot = Bot(
         token=settings.bot_token,
@@ -80,7 +83,7 @@ async def main() -> None:
 
     dp.include_router(build_moderation_router(services))
     dp.include_router(build_topics_router(services))
-    dp.include_router(build_admin_router(services, scheduler, scheduled_run))
+    dp.include_router(build_admin_router(services, scheduler, scheduled_run, publish_approved_run))
 
     scheduler.start()
 

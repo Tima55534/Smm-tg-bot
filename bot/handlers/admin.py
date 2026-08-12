@@ -11,7 +11,7 @@ from aiogram.filters.command import CommandObject
 from aiogram.types import Message
 
 from ..pipeline import run_pipeline, start_topic_selection
-from ..scheduler import schedule_job
+from ..scheduler import schedule_daily_job, schedule_job
 
 if TYPE_CHECKING:
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -30,7 +30,9 @@ STATUS_LABELS = {
 }
 
 
-def build_router(services: "Services", scheduler: "AsyncIOScheduler", scheduled_run) -> Router:
+def build_router(
+    services: "Services", scheduler: "AsyncIOScheduler", scheduled_run, publish_approved_run
+) -> Router:
     router = Router(name="admin")
 
     def _is_admin(message: Message) -> bool:
@@ -84,23 +86,67 @@ def build_router(services: "Services", scheduler: "AsyncIOScheduler", scheduled_
         if not _is_admin(message):
             return
 
+        args = (command.args or "").split()
+
+        # /schedule publish [ЧЧ:ММ] — controls the OTHER job: the daily time
+        # approved drafts actually get published, separate from the topic-
+        # collection schedule below.
+        if args and args[0] == "publish":
+            publish_job = scheduler.get_job("publish_approved_job")
+            next_publish = (
+                publish_job.next_run_time.strftime("%d.%m.%Y %H:%M %Z") if publish_job else "?"
+            )
+            if len(args) == 1:
+                await message.reply(
+                    f"Время публикации одобренных черновиков: {services.settings.publish_time} "
+                    f"({services.settings.timezone}).\nСледующий запуск: {next_publish}\n\n"
+                    "Чтобы изменить: /schedule publish [ЧЧ:ММ]\nНапример: /schedule publish 12:00"
+                )
+                return
+            if len(args) != 2 or not TIME_RE.match(args[1]):
+                await message.reply(
+                    "Формат: /schedule publish [ЧЧ:ММ], например /schedule publish 12:00."
+                )
+                return
+
+            publish_time = args[1]
+            services.settings.publish_time = publish_time
+            await services.db.set_setting("publish_time", publish_time)
+            schedule_daily_job(
+                scheduler, publish_approved_run, publish_time, services.settings.timezone,
+                "publish_approved_job",
+            )
+            publish_job = scheduler.get_job("publish_approved_job")
+            await message.reply(
+                f"Готово. Одобренные черновики теперь публикуются в {publish_time} "
+                f"({services.settings.timezone}).\nСледующий запуск: "
+                f"{publish_job.next_run_time.strftime('%d.%m.%Y %H:%M %Z')}"
+            )
+            return
+
         job = scheduler.get_job("pipeline_job")
         next_run = job.next_run_time.strftime("%d.%m.%Y %H:%M %Z") if job else "?"
+        publish_job = scheduler.get_job("publish_approved_job")
+        next_publish = (
+            publish_job.next_run_time.strftime("%d.%m.%Y %H:%M %Z") if publish_job else "?"
+        )
 
-        args = (command.args or "").split()
         if not args:
             await message.reply(
-                "Текущее расписание: раз в "
+                "Сбор тем: раз в "
                 f"{services.settings.interval_days} дн., в {services.settings.schedule_time} "
-                f"({services.settings.timezone}).\nСледующий запуск: {next_run}\n\n"
-                "Чтобы изменить: /schedule [дни] [ЧЧ:ММ]\nНапример: /schedule 3 09:00"
+                f"({services.settings.timezone}).\nСледующий сбор тем: {next_run}\n\n"
+                f"Публикация одобренного: каждый день в {services.settings.publish_time}.\n"
+                f"Следующая публикация: {next_publish}\n\n"
+                "Изменить сбор тем: /schedule [дни] [ЧЧ:ММ] (например /schedule 3 09:00)\n"
+                "Изменить время публикации: /schedule publish [ЧЧ:ММ] (например /schedule publish 12:00)"
             )
             return
 
         if len(args) != 2 or not args[0].isdigit() or int(args[0]) < 1:
             await message.reply(
                 "Формат: /schedule [дни] [ЧЧ:ММ], например /schedule 3 09:00 "
-                "(дни — целое число ≥ 1)."
+                "(дни — целое число ≥ 1). Или /schedule publish [ЧЧ:ММ] для времени публикации."
             )
             return
 
@@ -119,8 +165,8 @@ def build_router(services: "Services", scheduler: "AsyncIOScheduler", scheduled_
             scheduler, scheduled_run, interval_days, schedule_time, services.settings.timezone
         )
         await message.reply(
-            f"Готово. Теперь раз в {interval_days} дн. в {schedule_time} "
-            f"({services.settings.timezone}).\nСледующий запуск: "
+            f"Готово. Сбор тем теперь раз в {interval_days} дн. в {schedule_time} "
+            f"({services.settings.timezone}).\nСледующий сбор тем: "
             f"{next_run.strftime('%d.%m.%Y %H:%M %Z')}"
         )
 
