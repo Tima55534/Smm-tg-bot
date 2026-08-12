@@ -5,6 +5,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from aiogram import Bot, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
 from .config import Settings
@@ -114,13 +115,29 @@ def build_router(services: "Services") -> Router:
                 return
 
             await callback.message.reply(f"Принято, готовлю {len(selected_items)} черновик(ов)...")
+            failed: list[str] = []
             for item in selected_items:
                 await services.db.mark_seen(item.source, item.external_id)
                 try:
                     await generate_draft_for_item(services, _item_to_news_item(item))
                 except Exception:
                     logger.exception("Failed to generate draft for topic item %s", item.id)
-            await callback.answer("Готово")
+                    failed.append(_display_text(item))
+
+            if failed:
+                await callback.message.reply(
+                    "Не удалось подготовить черновик для тем (см. логи сервера):\n"
+                    + "\n".join(f"• {t[:80]}" for t in failed)
+                )
+
+            # This whole loop can take minutes for several topics; the
+            # original callback query is likely long expired by now, so a
+            # failure here is expected and harmless — the actual replies
+            # above already told the admin what happened.
+            try:
+                await callback.answer("Готово")
+            except TelegramBadRequest:
+                pass
             return
 
         await callback.answer()

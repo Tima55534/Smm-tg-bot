@@ -11,6 +11,29 @@ from ..sources.base import NewsItem
 logger = logging.getLogger(__name__)
 
 CYRILLIC_RE = re.compile(r"[Ѐ-ӿ]")
+ALLOWED_HTML_TAGS = ("b", "i", "blockquote")
+HTML_TAG_RE = re.compile(r"</?(\w+)[^>]*>")
+
+
+def _close_unbalanced_tags(text: str) -> str:
+    """Telegram rejects the WHOLE message if a <b>/<i>/<blockquote> is opened
+    but never closed (common after truncation or an imprecise AI rewrite).
+    Rather than reject the draft outright, append whatever closing tags are
+    still owed, innermost-open-first."""
+    open_stack: list[str] = []
+    for m in HTML_TAG_RE.finditer(text):
+        tag = m.group(1).lower()
+        if tag not in ALLOWED_HTML_TAGS:
+            continue
+        if m.group(0).startswith("</"):
+            if open_stack and open_stack[-1] == tag:
+                open_stack.pop()
+        else:
+            open_stack.append(tag)
+
+    if not open_stack:
+        return text
+    return text + "".join(f"</{tag}>" for tag in reversed(open_stack))
 
 TRANSLITERATE_PROMPT = """\
 Quyidagi matnda ba'zi joylari Kirill yozuvida qolib ketgan (bo'lishi kerak
@@ -161,6 +184,16 @@ class TextAI:
             # Claude ignored the budget; better to drop the whole block-quote tail
             # than to risk truncating mid-tag and breaking Telegram's HTML parser.
             text = text[:1024].rsplit("<", 1)[0].rstrip()
+
+        # Claude (or the transliteration retry above) sometimes drops a closing
+        # tag even well under the length cap — Telegram rejects the ENTIRE
+        # message for one unbalanced tag, so patch it up rather than lose the
+        # whole post over a missing </blockquote>.
+        text = _close_unbalanced_tags(text)
+        if len(text) > 1024:
+            text = text[:1024].rsplit("<", 1)[0].rstrip()
+            text = _close_unbalanced_tags(text)
+
         if len(text) < 150:
             # The source item probably had too little real content to work
             # with — better to fail loudly than send a threadbare post.
