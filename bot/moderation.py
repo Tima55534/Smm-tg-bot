@@ -100,8 +100,7 @@ async def publish_draft(
     """Publish to the first configured channel immediately; every channel
     after that is delayed by `secondary_channel_delay_minutes` (0 = also
     immediate). Returns (immediate_errors, delayed_channel_ids) — raises
-    only if the first (immediate) channel fails, since that's the one the
-    admin is actively waiting on."""
+    only if the first (immediate) channel fails."""
     draft = await db.get_draft(draft_id)
     if draft is None:
         raise ValueError(f"Draft {draft_id} not found")
@@ -147,6 +146,42 @@ async def publish_draft(
     return errors, scheduled_channels
 
 
+async def publish_all_approved(bot: Bot, db: Database, settings: Settings, scheduler=None) -> None:
+    """Runs on the daily publish_time cron job: sends every 'approved'
+    (queued) draft out, notifying the moderation chat of the outcome. This is
+    what actually puts a post on the channels — clicking Approve only queues
+    it for the next slot."""
+    drafts = await db.get_approved_drafts()
+    for draft in drafts:
+        try:
+            errors, scheduled = await publish_draft(bot, db, settings, draft.id, scheduler)
+        except Exception:
+            logger.exception("Scheduled publish of draft %s failed", draft.id)
+            await bot.send_message(
+                settings.moderation_chat_id,
+                f"Не удалось опубликовать черновик #{draft.id} по расписанию, см. логи.",
+            )
+            continue
+
+        if errors:
+            await bot.send_message(
+                settings.moderation_chat_id,
+                f"Опубликовано по расписанию (черновик #{draft.id}), но не во все каналы ⚠️\n"
+                f"Ошибки: {'; '.join(errors)}",
+            )
+        elif scheduled:
+            delay = settings.secondary_channel_delay_minutes
+            await bot.send_message(
+                settings.moderation_chat_id,
+                f"Опубликовано по расписанию (черновик #{draft.id}) ✅\n"
+                f"В остальные каналы уйдёт через {delay} мин.: {', '.join(scheduled)}",
+            )
+        else:
+            await bot.send_message(
+                settings.moderation_chat_id, f"Опубликовано по расписанию (черновик #{draft.id}) ✅"
+            )
+
+
 def build_router(services: "Services") -> Router:
     router = Router(name="moderation")
 
@@ -164,31 +199,14 @@ def build_router(services: "Services") -> Router:
             return
 
         if action == "approve":
-            try:
-                errors, scheduled = await publish_draft(
-                    services.bot, services.db, services.settings, draft_id, services.scheduler
-                )
-            except Exception:
-                logger.exception("Failed to publish draft %s", draft_id)
-                await callback.answer("Ошибка публикации, см. логи", show_alert=True)
-                return
+            await services.db.set_status(draft_id, "approved")
             await callback.message.edit_reply_markup(reply_markup=None)
-            if errors:
-                await callback.message.reply(
-                    f"Опубликовано (черновик #{draft_id}), но не во все каналы ⚠️\n"
-                    f"Ошибки: {'; '.join(errors)}"
-                )
-                await callback.answer("Опубликовано частично", show_alert=True)
-            elif scheduled:
-                delay = services.settings.secondary_channel_delay_minutes
-                await callback.message.reply(
-                    f"Опубликовано (черновик #{draft_id}) ✅\n"
-                    f"В остальные каналы уйдёт через {delay} мин.: {', '.join(scheduled)}"
-                )
-                await callback.answer("Опубликовано")
-            else:
-                await callback.message.reply(f"Опубликовано (черновик #{draft_id}) ✅")
-                await callback.answer("Опубликовано")
+            await callback.message.reply(
+                f"Одобрено (черновик #{draft_id}) ✅\n"
+                f"Уйдёт в первый канал в {services.settings.publish_time} "
+                f"({services.settings.timezone})."
+            )
+            await callback.answer("Одобрено, ждёт своего времени")
         elif action == "reject":
             await services.db.set_status(draft_id, "rejected")
             await callback.message.edit_reply_markup(reply_markup=None)

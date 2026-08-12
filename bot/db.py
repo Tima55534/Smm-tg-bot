@@ -275,6 +275,11 @@ class Database:
         row = await cur.fetchone()
         return int(row["c"])
 
+    async def get_approved_drafts(self) -> list[Draft]:
+        cur = await self.conn.execute("SELECT * FROM drafts WHERE status = 'approved' ORDER BY id")
+        rows = await cur.fetchall()
+        return [Draft.from_row(r) for r in rows]
+
     async def latest_drafts(self, limit: int = 10) -> list[Draft]:
         cur = await self.conn.execute(
             "SELECT * FROM drafts ORDER BY id DESC LIMIT ?", (limit,)

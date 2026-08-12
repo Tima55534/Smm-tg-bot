@@ -43,6 +43,7 @@ class Settings:
     poll_every_n_posts: int
     max_items_per_source: int
     secondary_channel_delay_minutes: int
+    publish_time: str
 
     web_sources: list[WebSource]
     telegram_channels: list[str]
@@ -99,6 +100,7 @@ class Settings:
             poll_every_n_posts=int(raw["poll_every_n_posts"]),
             max_items_per_source=int(raw["max_items_per_source"]),
             secondary_channel_delay_minutes=int(raw.get("secondary_channel_delay_minutes", 0)),
+            publish_time=str(raw.get("publish_time", raw["schedule"]["time"])),
             web_sources=web_sources,
             telegram_channels=list(raw["sources"]["telegram"]),
             text_model=raw["ai"]["text_model"],

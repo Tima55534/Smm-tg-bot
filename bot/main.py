@@ -13,8 +13,9 @@ from .config import BASE_DIR, settings
 from .db import Database
 from .handlers.admin import build_router as build_admin_router
 from .moderation import build_router as build_moderation_router
+from .moderation import publish_all_approved
 from .pipeline import Services, start_topic_selection
-from .scheduler import build_scheduler, schedule_job
+from .scheduler import build_scheduler, schedule_daily_job, schedule_job
 from .topics import build_router as build_topics_router
 
 logging.basicConfig(
@@ -66,6 +67,16 @@ async def main() -> None:
         settings.timezone,
     )
     services.scheduler = scheduler
+
+    async def publish_approved_run() -> None:
+        try:
+            await publish_all_approved(services.bot, services.db, services.settings, services.scheduler)
+        except Exception:
+            logger.exception("Scheduled publish-approved run failed")
+
+    schedule_daily_job(
+        scheduler, publish_approved_run, settings.publish_time, settings.timezone, "publish_approved_job"
+    )
 
     dp.include_router(build_moderation_router(services))
     dp.include_router(build_topics_router(services))

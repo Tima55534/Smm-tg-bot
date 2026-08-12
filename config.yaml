@@ -14,6 +14,12 @@ poll_every_n_posts: 4
 # delayed by this many minutes. Set to 0 to publish to all channels at once.
 secondary_channel_delay_minutes: 60
 
+# Time of day (schedule.timezone) approved drafts actually go out to the
+# first channel. Decoupled from schedule.time (which only controls when new
+# topics are collected/presented) — you can approve a draft any time and it
+# will still wait for this slot instead of publishing immediately.
+publish_time: "12:00"
+
 # Sources to collect news/data from
 sources:
   web:
