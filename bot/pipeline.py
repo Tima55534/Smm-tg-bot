@@ -9,7 +9,7 @@ from aiogram import Bot
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from .ai.image import ImageAI
-from .ai.text import TextAI
+from .ai.text import TextAI, _close_unbalanced_tags
 from .config import Settings
 from .db import Database
 from .moderation import send_draft_for_moderation
@@ -27,8 +27,22 @@ def _with_source_line(body: str, item: NewsItem) -> str:
     source_line = f'\n\n<i>{SOURCE_LINE_LABEL}: <a href="{html.escape(item.url)}">havola</a></i>'
     max_body_len = 1024 - len(source_line)
     if len(body) > max_body_len:
-        # Trim the body (not mid-tag) rather than drop the source line.
-        body = body[:max_body_len].rsplit("<", 1)[0].rstrip()
+        # Trim the body (not mid-tag) rather than drop the source line. This
+        # can chop off a closing tag that rewrite_post had already balanced;
+        # re-adding it costs bytes too, so shrink the cut point by exactly
+        # the overage each round until the re-balanced result actually fits
+        # (a fixed cut point can otherwise cycle: re-adding the same closing
+        # tag lands the next cut at the same spot forever).
+        target = max_body_len
+        for _ in range(20):
+            candidate = _close_unbalanced_tags(body[:target].rsplit("<", 1)[0].rstrip())
+            overage = len(candidate) - max_body_len
+            if overage <= 0:
+                body = candidate
+                break
+            target -= overage
+        else:
+            body = ""  # pathological input; an empty body beats a crash
     return body + source_line
 
 
